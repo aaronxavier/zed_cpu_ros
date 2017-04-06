@@ -1,0 +1,26 @@
+#no temp files
+*~
+.~*
+**/*~
+**/.~*
+
+#no build folder
+build/ 
+catkin_ws/*
+
+#no Pycharm / CLion project files 
+.idea/** 
+**/.idea/
+
+CMakeCache.txt
+**/CMakeFiles/
+**/Makefile
+**/cmake_install.cmake
+CTestTestfile.cmake
+cmake-build-debug/
+
+# qtcreator stuff
+*.creator
+*.creator.user
+*.files
+*.includes

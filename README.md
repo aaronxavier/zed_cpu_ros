@@ -1,79 +1,81 @@
-zed_cpu_ros
-===========
-A simple zed camera driver which only use CPU and only publish left and right raw images and its camera info.
+# zed_cpu_ros
 
-# Useage:
-1. git the packge into your working space
+* simple ZED camera driver which only uses the CPU and doesn't need the official StereoLabs drivers
+* only publishes the left and right images and the camera info via ROS
+* fork of Di Zeng's original version (https://github.com/willdzeng/zed_cpu_ros)
+* additions of this fork:
+  * better error and warning messages, e.g. when the frame rate drops
+  * [Kalibr](https://github.com/ethz-asl/kalibr/) YAML file support
+  * more launch / command line arguments
+  * some C++11 constructs and code clean-up
 
-    ```
+## Usage
+#### Install, build and source
+* either use your existing catkin_ws:
+
+    ```bash
     cd catkin_ws/src
     git clone https://github.com/transcendrobotics/zed_cpu_ros
     cd ..
     catkin_make
+    source devel/setup.bash
     ```
-2. Get your calibration files:
-    You can get your calibration files from zed or do a calibration your self by using ROS camera calibration package.
-    
-    (1). From zed:
-    
-    Find your zed calibration files in
+* or for quick & dirty testing create an in-source catkin_ws with `create_catkin_ws.sh`:
+
+    ```bash
+    git clone https://github.com/transcendrobotics/zed_cpu_ros
+    cd zed_cpu_ros
+    . ./create_catkin_ws.sh --build
     ```
-    cd /usr/local/zed/settings
-    ```
-    or download from:
+
+#### Get your calibration files: <br>
+* either from the manufacturer:
     http://calib.stereolabs.com/?SN=XXXX
 
     Note: XXXX is your last four digit S/N of your camera, make sure to change it!!
 
-    put the .conf file into zed_cpu_ros/config folder
+* or use [Kalibr](https://github.com/ethz-asl/kalibr/) to calibrate yourself and use the "camchain" YAML file as the config file (requires the `config_is_kalibr_yaml` flag to be set in the launch file or as a command line argument)
 
-    update launch file configuration file name in zed_cpu_ros.launch into your SNXXXX.conf
+* Put the .conf file into zed_cpu_ros/config folder and update the launch file configuration file name in zed_cpu_ros.launch to your SNXXXX.conf
+
+    ```bash
+    rosed zed_cpu_ros zed_cpu_ros.launch
     ```
-    roscd zed_cpu_ros/launch
-    gedit zed_cpu_ros.launch
-    ```
-    change XXXX into the .conf file you have, for example 1010
-    ```
+    change XXXX to the .conf file you have, for example 1010 - in this line:
+    ```xml
     <arg name="config_file_location" default="$(find zed_cpu_ros)/config/SN1010.conf"/>
     ```
 
-    (2). Do a calibration yourself:
-    
-    This option is suggested. Reference: http://wiki.ros.org/camera_calibration
-    ```
-    roslaunch zed_cpu_ros camera_calibration.launch
-    ```
-    After calibration:
-    Find the left.yaml and right.yaml in the tar file and put them into the zed_cpu_ros/config folder.
-    The calibration file will be loaded if you turn <load_zed_config> off in the launch file.
+#### Launch the ROS node
 
-3. launch the code
-    ```
-    roslaunch zed_cpu_ros zed_cpu_ros.launch
-    ```
-## Launch file parameters
+  ```bash
+  roslaunch zed_cpu_ros zed_cpu_ros.launch
+  ```
+
+### Launch file / command line parameters
+
+Specify in the launch call as shown in this example:
+```diff
+roslaunch zed_cpu_ros zed_cpu_ros.launch frame_rate:=25 show_image:=true
+```
+
 
  Parameter                    |           Description                                       |              Value          
 ------------------------------|-------------------------------------------------------------|-------------------------           
- resolution                   | ZED Camera resolution                                       | '0': HD2K                   
+ `device`                   | UVC camera capture device ID                                | 0, 1, ...
+ `resolution`               | ZED Camera resolution                                       | '0': HD2K                   
  _                            | _                                                           | '1': HD1080                 
  _                            | _                                                           | '2': HD720                  
  _                            | _                                                           | '3': VGA                                    
- frame_rate                   | Rate at which images are published                          | int                                             
- left_frame_id                | Left Frame ID                                               | string        
- right_frame_id               | Right Frame ID                                              | string        
- load_zed_config              | Whether to use ZED calibration file                         | bool        
- config_file_location         | The location of ZED calibration file                        | string        
- show_image                   | Whether to use opencv show image                            | bool        
+ `frame_rate`               | rate at which images are published                          | int                                        
+ `config_file_location`     | path of ZED calibration file                                | string     
+ `config_is_kalibr_yaml`    | calibration file is a "camchain" from [Kalibr](https://github.com/ethz-asl/kalibr/) | bool
+ `show_image`               | display a window with image live view                       | bool
+ `flip`                     | rotate the image by 180 degrees                             | bool              
 
-# TODO:
 
-1. add the launch file for stereo_proc.
-2. add the nodelet functionality.
+## Authors:
 
-# Transcend Robotics:
-Patented articulated traction control ARTI technology for stair climbing and obstacle traversal without complex software or controls
-http://transcendrobotics.com/
-
-# Authour:
-Di Zeng 
+* Di Zeng
+* Michael Grupp
+* and other contributors...
