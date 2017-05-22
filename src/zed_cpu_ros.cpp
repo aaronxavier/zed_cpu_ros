@@ -143,7 +143,7 @@ public:
         private_nh.param("frame_rate", frame_rate_, 30.0);
         private_nh.param("flip", flip_, false);
         private_nh.param("config_is_kalibr_yaml", config_is_kalibr_yaml, false);
-        private_nh.param("zed_config_file", zed_config_file, std::string("~/SN1267.conf"));
+        private_nh.param("zed_config_file", zed_config_file, std::string("config/dummy_config.conf"));
         private_nh.param("left_frame_id", left_frame_id_, std::string("left_camera"));
         private_nh.param("right_frame_id", right_frame_id_, std::string("right_camera"));
         private_nh.param("show_image", show_image_, false);
