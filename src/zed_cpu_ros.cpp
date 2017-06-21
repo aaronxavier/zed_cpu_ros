@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <map>
+#include <iterator>
 #include <utility>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/ini_parser.hpp>
@@ -45,7 +46,7 @@ enum class ZedResoID {
 /**
  * @brief map for the (width, height) pairs for each ZedResoID
  */
-const std::map<ZedResoID, std::pair<int, int>> reso_values = {
+const std::map<ZedResoID, std::pair<unsigned int, unsigned int>> reso_values = {
         {ZedResoID::TWO_K, {4416, 1242}},
         {ZedResoID::FHD, {3840, 1080}},
         {ZedResoID::HD, {2560, 720}},
@@ -72,7 +73,8 @@ public:
         cv::Mat left_image;
         cv::Mat right_image;
         setResolution(resolution);
-        ROS_INFO("ZED stereo camera resolution set to: %fx%f", camera_->get(WIDTH_ID), camera_->get(HEIGHT_ID));
+        ROS_INFO("ZED stereo camera resolution set to: %ix%i",
+                 int(camera_->get(WIDTH_ID)), int(camera_->get(HEIGHT_ID)));
     }
 
     /**
@@ -157,6 +159,8 @@ public:
             }
 
             ZedCamera zed(device_, resoID_, flip_);
+            width_ = reso_values.at(resoID_).first;
+            height_ = reso_values.at(resoID_).second;
             ROS_INFO("Initialized the camera");
 
             // setup publisher stuff
@@ -276,6 +280,7 @@ public:
         YAML::Node i_l = camchain["cam0"]["intrinsics"];
         YAML::Node i_r = camchain["cam1"]["intrinsics"];
 
+        // ROS docs: "Intrinsic camera matrix for the raw (distorted) images."
         left_info.K.fill(0.0);
         left_info.K[0] = i_l[0].as<double>();  // fx
         left_info.K[2] = i_l[2].as<double>();  // cx
@@ -308,28 +313,55 @@ public:
         }
         right_info.D[4] = 0.0;
 
-        // rectification matrix not available from Kalibr!
+        // ROS docs: "rotation matrix aligning the camera coordinate system to the ideal stereo image plane"
+        // rectification rotation matrix not available from Kalibr! -> calculate with OpenCV
+        // convert boost::array to cv::Mat
+        cv::Mat mat_K_left(3, 3, CV_64F, &left_info.K[0]);
+        cv::Mat mat_K_right(3, 3, CV_64F, &right_info.K[0]);
+        cv::Mat mat_D_left(5, 1, CV_64F, &left_info.D[0]);
+        cv::Mat mat_D_right(5, 1, CV_64F, &right_info.D[0]);
+        YAML::Node T_01 = camchain["cam1"]["T_cn_cnm1"];
+        cv::Mat t_01_stereo(3, 1, CV_64F);
+        cv::Mat R_01_stereo(3, 3, CV_64F);
+        for (int i=0; i<3; i++) {
+            for (int j=0; j<3; j++) {
+                R_01_stereo.at<double>(i, j) = T_01[i][j].as<double>();
+            }
+        }
+        for (int i=0; i<3; i++) {
+            t_01_stereo.at<double>(i) = T_01[i][3].as<double>();
+        }
+        cv::Mat R0_rect(3, 3, CV_64F);
+        cv::Mat R1_rect(3, 3, CV_64F);
+        cv::Mat P0_rect(3, 4, CV_64F);
+        cv::Mat P1_rect(3, 4, CV_64F);
+        cv::Mat Q_rect(4, 4, CV_64F);
+        cv::stereoRectify(mat_K_left, mat_D_left, mat_K_right, mat_D_left, cv::Size_<unsigned int>(width_/2, height_),
+                          R_01_stereo, t_01_stereo, R0_rect, R1_rect, P0_rect, P1_rect, Q_rect,
+                          cv::CALIB_ZERO_DISPARITY, 0.0);
+        int id = 0;
+        cv::MatIterator_<double> it, end;
+        for (it = R0_rect.begin<double>(); it != R0_rect.end<double>(); ++it, id++) {
+            left_info.R[id] = *it;
+        }
+        id = 0;
+        for (it = R1_rect.begin<double>(); it != R1_rect.end<double>(); ++it, id++) {
+            right_info.R[id] = *it;
+        }
 
         // Projection/camera matrix
+        // ROS docs: "of the processed (rectified) image"
         //     [fx'  0  cx' Tx]
         // P = [ 0  fy' cy' Ty]
         //     [ 0   0   1   0]
-        left_info.P.fill(0.0);
-        left_info.P[0] = left_info.K[0];  // fx
-        left_info.P[2] = left_info.K[2];  // cx
-        left_info.P[5] = left_info.K[4];  // fy
-        left_info.P[6] = left_info.K[5];  // cy
-        left_info.P[10] = 1.0;
-
-        right_info.P.fill(0.0);
-        right_info.P[0] = right_info.K[0];  // fx
-        right_info.P[2] = right_info.K[2];  // cx
-        YAML::Node T_cn_cnm1 = camchain["cam1"]["T_cn_cnm1"];
-        double baseline = -T_cn_cnm1[0][3].as<double>();  // in mm
-        right_info.P[3] = (-1 * left_info.K[0] * baseline);  // Tx = -fx' * baseline
-        right_info.P[5] = right_info.K[4];  // fy
-        right_info.P[6] = right_info.K[5];  // cy
-        right_info.P[10] = 1.0;
+        id = 0;
+        for (it = P0_rect.begin<double>(); it != P0_rect.end<double>(); ++it, id++) {
+            left_info.P[id] = *it;
+        }
+        id = 0;
+        for (it = P1_rect.begin<double>(); it != P1_rect.end<double>(); ++it, id++) {
+            right_info.P[id] = *it;
+        }
 
         // resolution (width/height)
         int exp_width = reso_values.at(resoID_).first;
@@ -528,7 +560,7 @@ private:
     int device_;
     double frame_rate_;
     bool show_image_, flip_;
-    double width_, height_;
+    unsigned int width_, height_;
     std::string left_frame_id_, right_frame_id_;
     std::string zed_config_file;
 };
