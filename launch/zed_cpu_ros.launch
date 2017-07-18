@@ -8,7 +8,7 @@
 <arg name="flip" default="true"/>
 <arg name="show_image" default="true"/>
 
-<node pkg="zed_cpu_ros" type="zed_cpu_ros" name="zed_cpu_ros_node" output="screen" ns="$(arg camera_namespace)" required="true">
+<node pkg="zed_cpu_ros" type="zed_cpu_ros" name="zed_stereo_node" output="screen" ns="$(arg camera_namespace)" required="true">
 	<param name="device" value="$(arg device)"/>	
 	<param name="resolution" value="$(arg resolution)"/>
 	<param name="frame_rate" value="$(arg frame_rate)"/>

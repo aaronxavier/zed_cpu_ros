@@ -9,6 +9,7 @@ find_package(catkin REQUIRED
             cv_bridge
             image_transport
             camera_info_manager
+            dynamic_reconfigure
         )
 
 include(CheckCXXCompilerFlag)
@@ -36,6 +37,10 @@ include_directories(
 add_definitions(${EIGEN_DEFINITIONS})
 
 link_directories(${catkin_LIBRARY_DIRS})
+
+generate_dynamic_reconfigure_options(
+        cfg/zed_cpu_ros_dynamic_reconfigure.cfg
+)
 
 catkin_package(
     # INCLUDE_DIRS include

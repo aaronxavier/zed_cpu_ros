@@ -1,9 +1,10 @@
 # zed_cpu_ros
 
-* simple ZED camera driver which only uses the CPU and doesn't need the official StereoLabs drivers
+* simple ZED camera driver which only uses the CPU and doesn't need the official StereoLabs drivers / CUDA
 * only publishes the left and right images and the camera info via ROS
 * fork of Di Zeng's original version (https://github.com/willdzeng/zed_cpu_ros)
 * additions of this fork:
+  * `dynamic_reconfigure` support
   * better error and warning messages, e.g. when the frame rate drops
   * [Kalibr](https://github.com/ethz-asl/kalibr/) YAML file support
   * more launch / command line arguments
@@ -20,7 +21,7 @@
     catkin_make
     source devel/setup.bash
     ```
-* or for quick & dirty testing create an in-source catkin_ws with `create_catkin_ws.sh`:
+* for for quick & dirty testing create an in-source catkin_ws with `create_catkin_ws.sh`:
 
     ```bash
     git clone https://github.com/transcendrobotics/zed_cpu_ros
@@ -48,13 +49,20 @@
 
 #### Launch the ROS node
 
-  ```bash
-  roslaunch zed_cpu_ros zed_cpu_ros.launch
-  ```
+```bash
+roslaunch zed_cpu_ros zed_cpu_ros.launch
+```
+
+You can reconfigure a few camera settings that are supported via the UVC interface of the ZED camera without restarting the node.
+
+To open the reconfigure GUI:
+```bash
+rosrun rqt_reconfigure rqt_reconfigure
+```
 
 ### Launch file / command line parameters
 
-Specify in the launch call as shown in this example:
+Specify command line in the launch call as shown in this example:
 ```diff
 roslaunch zed_cpu_ros zed_cpu_ros.launch frame_rate:=25 show_image:=true
 ```

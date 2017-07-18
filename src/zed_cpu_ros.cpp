@@ -29,8 +29,9 @@
 #include <image_transport/image_transport.h>
 #include <camera_info_manager/camera_info_manager.h>
 
-#define WIDTH_ID 3
-#define HEIGHT_ID 4
+// ROS dynamic_reconfigure
+#include <dynamic_reconfigure/server.h>
+#include <zed_cpu_ros/zed_cpu_ros_DynConfig.h>  // automatically generated in devel from cfg/...
 
 
 /**
@@ -66,16 +67,18 @@ public:
     ZedCamera(int device_id, ZedResoID resolution, bool flip) {
         camera_ = std::unique_ptr<cv::VideoCapture>(new cv::VideoCapture(device_id));
         if(!camera_->isOpened())
-            throw std::runtime_error("unable to open camera with device ID " + std::to_string(device_id));
+            throw std::runtime_error("Unable to open stereo camera with device ID " + std::to_string(device_id));
         device_id_ = device_id;
         flip_ = flip;
         cv::Mat raw;
         cv::Mat left_image;
         cv::Mat right_image;
         setResolution(resolution);
-        ROS_INFO("ZED stereo camera resolution set to: %ix%i",
-                 int(camera_->get(WIDTH_ID)), int(camera_->get(HEIGHT_ID)));
+        ROS_INFO("Stereo camera resolution set to: %ix%i",
+                 int(camera_->get(CV_CAP_PROP_FRAME_WIDTH)), int(camera_->get(CV_CAP_PROP_FRAME_HEIGHT)));
     }
+
+    ZedCamera() { }  // just placeholder
 
     /**
      * @brief tries to set the resolution of the camera and throws std::runtime_error on failure
@@ -84,18 +87,34 @@ public:
     void setResolution(ZedResoID resoID) {
         width_ = reso_values.at(resoID).first;
         height_ = reso_values.at(resoID).second;
-        camera_->set(WIDTH_ID, width_);
-        camera_->set(HEIGHT_ID, height_);
+        camera_->set(CV_CAP_PROP_FRAME_WIDTH, width_);
+        camera_->set(CV_CAP_PROP_FRAME_HEIGHT, height_);
 
         // make sure the hardware uses the correct values
-        auto hw_width = camera_->get(WIDTH_ID);
-        auto hw_height = camera_->get(HEIGHT_ID);
-        if (width_ != camera_->get(WIDTH_ID) || height_ != camera_->get(HEIGHT_ID)) {
-            throw std::runtime_error("failed to set resoID of camera device " + std::to_string(device_id_) + " to "
+        auto hw_width = camera_->get(CV_CAP_PROP_FRAME_WIDTH);
+        auto hw_height = camera_->get(CV_CAP_PROP_FRAME_HEIGHT);
+        if (width_ != camera_->get(CV_CAP_PROP_FRAME_WIDTH) || height_ != camera_->get(CV_CAP_PROP_FRAME_HEIGHT)) {
+            throw std::runtime_error("Failed to set resolution of stereo camera " + std::to_string(device_id_) + " to "
                                      + std::to_string(width_) + "x" + std::to_string(height_) + " - hardware values: "
                                      + std::to_string(hw_width) + "x" + std::to_string(hw_height));
         }
 
+    }
+
+    /**
+     * @brief set a UVC capture parameter of the camera (only a few are supported)
+     * @param[in]  propId  identifier of the setting - see CV_CAP_* integer constants
+     * @param[in]  value   the desired value to be set
+     */
+    void setProperty(int propId, double value) {
+        camera_->set(propId, value);
+    }
+
+    // TODO debug only - show the camera's CV_CAP_* values
+    void showSettings() {
+        for (int i=-4; i<=37; i++) {
+            std::cout << i << " : "<< camera_->get(i) << std::endl;
+        }
     }
 
     /**
@@ -133,6 +152,16 @@ private:
  */
 class ZedCameraROS {
 
+private:
+    ZedCamera zed;
+    ZedResoID resoID_;
+    int device_;
+    double frame_rate_;
+    bool show_image_, flip_;
+    unsigned int width_, height_;
+    std::string left_frame_id_, right_frame_id_;
+    std::string zed_config_file;
+
 public:
     ZedCameraROS() {
         ros::NodeHandle nh;
@@ -155,14 +184,22 @@ public:
             if (static_cast<int>(ZedResoID::TWO_K) < resolution_param <= static_cast<int>(ZedResoID::VGA)) {
                 resoID_ = static_cast<ZedResoID>(resolution_param);
             } else {
-                throw std::runtime_error("invalid resolution parameter");
+                throw std::runtime_error("Invalid resolution parameter");
             }
 
-            ZedCamera zed(device_, resoID_, flip_);
+            zed = ZedCamera(device_, resoID_, flip_);
             width_ = reso_values.at(resoID_).first;
             height_ = reso_values.at(resoID_).second;
             bool publish_cam_info = !zed_config_file.empty();
             ROS_INFO("Initialized the camera");
+
+            // setup dynamic_reconfigure
+            dynamic_reconfigure::Server<zed_cpu_ros::zed_cpu_ros_DynConfig> server;
+            dynamic_reconfigure::Server<zed_cpu_ros::zed_cpu_ros_DynConfig>::CallbackType f;
+
+            // WTF boost madness to bin non-static member function
+            f = boost::bind(boost::mem_fn(&ZedCameraROS::dynamic_reconfigure_callback), boost::ref(*this), _1, _2);
+            server.setCallback(f);
 
             // setup publisher stuff
             image_transport::ImageTransport it(nh);
@@ -192,12 +229,13 @@ public:
             else
                 ROS_INFO("Configuration file not given - won't publish camera_info");
 
-            // loop to publish images;
+            // loop to publish images
             cv::Mat left_image, right_image;
             ros::Rate r(frame_rate_);
             double cum_time_sec = 0.0;
             int count = 0;
             while (nh.ok()) {
+                ros::spinOnce();  // for callbacks - http://answers.ros.org/question/11887/significance-of-rosspinonce/
                 count++;
                 ros::Time now = ros::Time::now();
                 if (!zed.getImages(left_image, right_image)) {
@@ -241,6 +279,18 @@ public:
             ROS_ERROR("%s", e.what());
             throw e;
         }
+    }
+
+    void dynamic_reconfigure_callback(zed_cpu_ros::zed_cpu_ros_DynConfig &config, uint32_t level) {
+        ROS_INFO("Received a dynamic_reconfigure request");
+        zed.setResolution(static_cast<ZedResoID>(config.resolution_ID));
+        //zed.setProperty(CV_CAP_PROP_AUTO_EXPOSURE, config.auto_exposure);
+        //zed.setProperty(CV_CAP_PROP_EXPOSURE, config.exposure);
+        zed.setProperty(CV_CAP_PROP_GAIN, config.defaults ? 0.5 : config.gain);
+        zed.setProperty(CV_CAP_PROP_BRIGHTNESS, config.defaults ? 0.375 : config.brightness);
+        zed.setProperty(CV_CAP_PROP_CONTRAST, config.defaults ? 0.125 : config.contrast);
+        zed.setProperty(CV_CAP_PROP_HUE, config.defaults ? 0 : config.hue);
+        zed.setProperty(CV_CAP_PROP_SATURATION, config.defaults ? 0.5 : config.saturation);
     }
 
     /**
@@ -381,7 +431,7 @@ public:
         right_info.height = reso_r[1].as<int>();
         if ((left_info.width + right_info.width != exp_width)
                 || (left_info.height != exp_height || right_info.height != exp_height)) {
-            throw std::runtime_error("resolution values in .yaml file ("
+            throw std::runtime_error("Resolution values in .yaml file ("
                                      + std::to_string(left_info.width) + "x" + std::to_string(left_info.height)
                                      + ") and ("
                                      + std::to_string(right_info.width) + "x" + std::to_string(right_info.height)
@@ -562,14 +612,6 @@ public:
         img_pub.publish(cv_image.toImageMsg());
     }
 
-private:
-    ZedResoID resoID_;
-    int device_;
-    double frame_rate_;
-    bool show_image_, flip_;
-    unsigned int width_, height_;
-    std::string left_frame_id_, right_frame_id_;
-    std::string zed_config_file;
 };
 
 

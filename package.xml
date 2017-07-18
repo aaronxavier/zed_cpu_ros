@@ -1,10 +1,10 @@
 <package>
     <name>zed_cpu_ros</name>
-    <version>0.0.1</version>
+    <version>0.1.0</version>
     <description>
-      A simple zed camera driver which only use CPU and only publish left and right raw images.
+      ZED camera driver for ROS which only uses the CPU
     </description>
-    <author>Di Zeng</author>
+    <author>Michael Grupp</author>
     <author>di.zeng@transcendrobotics.com</author>
     <maintainer email="di.zeng@transcendrobotics.com">Di Zeng</maintainer>
     <license>BSD</license>
@@ -19,6 +19,7 @@
     <build_depend>image_transport</build_depend>
     <build_depend>camera_info_manager</build_depend>
     <build_depend>yaml-cpp</build_depend>
+    <build_depend>dynamic_reconfigure</build_depend>
 
     <run_depend>cmake_modules</run_depend>
     <run_depend>roscpp</run_depend>
@@ -27,6 +28,7 @@
     <run_depend>image_transport</run_depend>
     <run_depend>camera_info_manager</run_depend>
     <run_depend>yaml-cpp</run_depend>
+    <run_depend>dynamic_reconfigure</run_depend>
 
     <export>
     </export>
