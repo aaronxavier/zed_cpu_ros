@@ -1,5 +1,5 @@
 <launch>
-<arg name="config_file_location" default="$(find zed_cpu_ros)/config/dummy_config.conf"/>
+<arg name="config_file_location" default=""/>
 <arg name="config_is_kalibr_yaml" default="false"/>
 <arg name="camera_namespace" default="camera"/>
 <arg name="device" default="0"/>

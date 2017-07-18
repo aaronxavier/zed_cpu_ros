@@ -145,7 +145,7 @@ public:
         private_nh.param("frame_rate", frame_rate_, 30.0);
         private_nh.param("flip", flip_, false);
         private_nh.param("config_is_kalibr_yaml", config_is_kalibr_yaml, false);
-        private_nh.param("zed_config_file", zed_config_file, std::string("config/dummy_config.conf"));
+        private_nh.param("zed_config_file", zed_config_file, std::string(""));
         private_nh.param("left_frame_id", left_frame_id_, std::string("left_camera"));
         private_nh.param("right_frame_id", right_frame_id_, std::string("right_camera"));
         private_nh.param("show_image", show_image_, false);
@@ -161,6 +161,7 @@ public:
             ZedCamera zed(device_, resoID_, flip_);
             width_ = reso_values.at(resoID_).first;
             height_ = reso_values.at(resoID_).second;
+            bool publish_cam_info = !zed_config_file.empty();
             ROS_INFO("Initialized the camera");
 
             // setup publisher stuff
@@ -168,24 +169,28 @@ public:
             image_transport::Publisher left_image_pub = it.advertise("left/image_raw", 1);
             image_transport::Publisher right_image_pub = it.advertise("right/image_raw", 1);
 
-            ros::Publisher left_cam_info_pub = nh.advertise<sensor_msgs::CameraInfo>("left/camera_info", 1);
-            ros::Publisher right_cam_info_pub = nh.advertise<sensor_msgs::CameraInfo>("right/camera_info", 1);
-
+            ros::Publisher left_cam_info_pub, right_cam_info_pub;
             sensor_msgs::CameraInfo left_info, right_info;
+            if (publish_cam_info) {
+                left_cam_info_pub = nh.advertise<sensor_msgs::CameraInfo>("left/camera_info", 1);
+                right_cam_info_pub = nh.advertise<sensor_msgs::CameraInfo>("right/camera_info", 1);
 
-            ROS_INFO("Trying to load camera calibration file %s", zed_config_file.c_str());
-            try {
-                if (config_is_kalibr_yaml)
-                    getKalibrCameraInfo(zed_config_file, left_info, right_info);
-                else
-                    getZedCameraInfo(zed_config_file, left_info, right_info);
+                ROS_INFO("Loading camera calibration file %s", zed_config_file.c_str());
+                try {
+                    if (config_is_kalibr_yaml)
+                        getKalibrCameraInfo(zed_config_file, left_info, right_info);
+                    else
+                        getZedCameraInfo(zed_config_file, left_info, right_info);
+                }
+                catch (std::runtime_error &e) {
+                    ROS_WARN("Can't load camera calibration file %s", zed_config_file.c_str());
+                    ROS_ERROR("%s", e.what());
+                    throw e;
+                }
+                ROS_INFO("Successfully loaded camera calibration file");
             }
-            catch (std::runtime_error &e) {
-                ROS_WARN("Can't load camera calibration file %s", zed_config_file.c_str());
-                ROS_ERROR("%s", e.what());
-                throw e;
-            }
-            ROS_INFO("Successfully loaded camera calibration file");
+            else
+                ROS_INFO("Configuration file not given - won't publish camera_info");
 
             // loop to publish images;
             cv::Mat left_image, right_image;
@@ -212,11 +217,13 @@ public:
                 if (right_image_pub.getNumSubscribers() > 0) {
                     publishImage(right_image, right_image_pub, "right_frame", now);
                 }
-                if (left_cam_info_pub.getNumSubscribers() > 0) {
-                    publishCamInfo(left_cam_info_pub, left_info, now);
-                }
-                if (right_cam_info_pub.getNumSubscribers() > 0) {
-                    publishCamInfo(right_cam_info_pub, right_info, now);
+                if (publish_cam_info) {
+                    if (left_cam_info_pub.getNumSubscribers() > 0) {
+                        publishCamInfo(left_cam_info_pub, left_info, now);
+                    }
+                    if (right_cam_info_pub.getNumSubscribers() > 0) {
+                        publishCamInfo(right_cam_info_pub, right_info, now);
+                    }
                 }
                 r.sleep();
                 cum_time_sec += r.cycleTime().toSec();
