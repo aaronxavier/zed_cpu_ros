@@ -4,6 +4,7 @@
 * only publishes the left and right images and the camera info via ROS
 * fork of Di Zeng's original version (https://github.com/willdzeng/zed_cpu_ros)
 * additions of this fork:
+  * independent high-frequency `std::thread` for frame grabbing (to prevent buffer lag)
   * `dynamic_reconfigure` support
   * better error and warning messages, e.g. when the frame rate drops
   * [Kalibr](https://github.com/ethz-asl/kalibr/) YAML file support

@@ -10,6 +10,8 @@
  */
 
 #include <memory>
+#include <thread>
+#include <mutex>
 #include <string>
 #include <map>
 #include <iterator>
@@ -155,6 +157,7 @@ class ZedCameraROS {
 private:
     ZedCamera zed;
     ZedResoID resoID_;
+    std::mutex frame_mutex;
     int device_;
     double frame_rate_;
     bool show_image_, flip_;
@@ -168,6 +171,8 @@ public:
         ros::NodeHandle private_nh("~");
         int resolution_param = 1;
         bool config_is_kalibr_yaml = false;
+        bool allow_dynamic_reconfig = false;
+
         // get ROS params
         private_nh.param("device", device_, 0);
         private_nh.param("resolution", resolution_param, 1);
@@ -178,6 +183,7 @@ public:
         private_nh.param("left_frame_id", left_frame_id_, std::string("left_camera"));
         private_nh.param("right_frame_id", right_frame_id_, std::string("right_camera"));
         private_nh.param("show_image", show_image_, false);
+        private_nh.param("dyn_cfg", allow_dynamic_reconfig, false);
 
         ROS_INFO("Trying to initialize the camera");
         try {
@@ -194,12 +200,16 @@ public:
             ROS_INFO("Initialized the camera");
 
             // setup dynamic_reconfigure
-            dynamic_reconfigure::Server<zed_cpu_ros::zed_cpu_ros_DynConfig> server;
-            dynamic_reconfigure::Server<zed_cpu_ros::zed_cpu_ros_DynConfig>::CallbackType f;
-
-            // WTF boost madness to bin non-static member function
-            f = boost::bind(boost::mem_fn(&ZedCameraROS::dynamic_reconfigure_callback), boost::ref(*this), _1, _2);
-            server.setCallback(f);
+            if(allow_dynamic_reconfig) {
+                ROS_INFO("Starting dynamic_reconfigure server");
+                dynamic_reconfigure::Server<zed_cpu_ros::zed_cpu_ros_DynConfig> server;
+                dynamic_reconfigure::Server<zed_cpu_ros::zed_cpu_ros_DynConfig>::CallbackType f;
+                // WTF boost madness to bin non-static member function
+                f = boost::bind(boost::mem_fn(&ZedCameraROS::dynamic_reconfigure_callback), boost::ref(*this), _1, _2);
+                server.setCallback(f);
+            }
+            else
+                ROS_INFO("No dynamic_reconfigure server requested");
 
             // setup publisher stuff
             image_transport::ImageTransport it(nh);
@@ -229,20 +239,31 @@ public:
             else
                 ROS_INFO("Configuration file not given - won't publish camera_info");
 
+            // thread for high-frequency frame grabbing
+            cv::Mat left_image_grab, right_image_grab;
+            std::thread grabbing_loop(&ZedCameraROS::grabbingWorkerTask, this,
+                                      std::ref(left_image_grab),
+                                      std::ref(right_image_grab));
+            ROS_INFO("Started frame grabbing worker thread");
+
             // loop to publish images
-            cv::Mat left_image, right_image;
             ros::Rate r(frame_rate_);
+            cv::Mat left_image, right_image;
             double cum_time_sec = 0.0;
             int count = 0;
             while (nh.ok()) {
                 ros::spinOnce();  // for callbacks - http://answers.ros.org/question/11887/significance-of-rosspinonce/
                 count++;
                 ros::Time now = ros::Time::now();
-                if (!zed.getImages(left_image, right_image)) {
+                frame_mutex.lock();
+                left_image_grab.copyTo(left_image);
+                right_image_grab.copyTo(right_image);
+                frame_mutex.unlock();
+                if (left_image.empty() || right_image.empty()) {
                     ROS_WARN_ONCE("Failed to grab an image from the camera");
                 } else {
                     ROS_INFO_ONCE("Successfully grabbed an image from the camera");
-                    ROS_INFO_ONCE("Continuous grabbing loop started...");
+                    ROS_INFO_ONCE("Publishing frames at %.2f Hz", frame_rate_);
                     if (show_image_) {
                         cv::imshow("left", left_image);
                         cv::imshow("right", right_image);
@@ -278,6 +299,16 @@ public:
         catch (std::runtime_error &e) {
             ROS_ERROR("%s", e.what());
             throw e;
+        }
+    }
+
+    void grabbingWorkerTask(cv::Mat &left, cv::Mat &right) {
+        bool ok = true;
+        while(ok) {
+            frame_mutex.lock();
+            ok = zed.getImages(left, right);
+            frame_mutex.unlock();
+            cv::waitKey(1);
         }
     }
 
