@@ -17,7 +17,7 @@
 
     ```bash
     cd catkin_ws/src
-    git clone https://github.com/transcendrobotics/zed_cpu_ros
+    git clone https://github.com/MichaelGrupp/zed_cpu_ros
     cd ..
     catkin_make
     source devel/setup.bash
@@ -25,7 +25,7 @@
 * for for quick & dirty testing create an in-source catkin_ws with `create_catkin_ws.sh`:
 
     ```bash
-    git clone https://github.com/transcendrobotics/zed_cpu_ros
+    git clone https://github.com/MichaelGrupp/zed_cpu_ros
     cd zed_cpu_ros
     . ./create_catkin_ws.sh --build
     ```
