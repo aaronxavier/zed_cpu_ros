@@ -77,7 +77,7 @@ public:
         cv::Mat right_image;
         setResolution(resolution);
         ROS_INFO("Stereo camera resolution set to: %ix%i",
-                 int(camera_->get(CV_CAP_PROP_FRAME_WIDTH)), int(camera_->get(CV_CAP_PROP_FRAME_HEIGHT)));
+                 int(camera_->get(cv::CAP_PROP_FRAME_WIDTH)), int(camera_->get(cv::CAP_PROP_FRAME_HEIGHT)));
     }
 
     ZedCamera() { }  // just placeholder
@@ -89,13 +89,13 @@ public:
     void setResolution(ZedResoID resoID) {
         width_ = reso_values.at(resoID).first;
         height_ = reso_values.at(resoID).second;
-        camera_->set(CV_CAP_PROP_FRAME_WIDTH, width_);
-        camera_->set(CV_CAP_PROP_FRAME_HEIGHT, height_);
+        camera_->set(cv::CAP_PROP_FRAME_WIDTH, width_);
+        camera_->set(cv::CAP_PROP_FRAME_HEIGHT, height_);
 
         // make sure the hardware uses the correct values
-        auto hw_width = camera_->get(CV_CAP_PROP_FRAME_WIDTH);
-        auto hw_height = camera_->get(CV_CAP_PROP_FRAME_HEIGHT);
-        if (width_ != camera_->get(CV_CAP_PROP_FRAME_WIDTH) || height_ != camera_->get(CV_CAP_PROP_FRAME_HEIGHT)) {
+        auto hw_width = camera_->get(cv::CAP_PROP_FRAME_WIDTH);
+        auto hw_height = camera_->get(cv::CAP_PROP_FRAME_HEIGHT);
+        if (width_ != camera_->get(cv::CAP_PROP_FRAME_WIDTH) || height_ != camera_->get(cv::CAP_PROP_FRAME_HEIGHT)) {
             throw std::runtime_error("Failed to set resolution of stereo camera " + std::to_string(device_id_) + " to "
                                      + std::to_string(width_) + "x" + std::to_string(height_) + " - hardware values: "
                                      + std::to_string(hw_width) + "x" + std::to_string(hw_height));
@@ -105,14 +105,14 @@ public:
 
     /**
      * @brief set a UVC capture parameter of the camera (only a few are supported)
-     * @param[in]  propId  identifier of the setting - see CV_CAP_* integer constants
+     * @param[in]  propId  identifier of the setting - see cv::CAP_* integer constants
      * @param[in]  value   the desired value to be set
      */
     void setProperty(int propId, double value) {
         camera_->set(propId, value);
     }
 
-    // TODO debug only - show the camera's CV_CAP_* values
+    // TODO debug only - show the camera's cv::CAP_* values
     void showSettings() {
         for (int i=-4; i<=37; i++) {
             std::cout << i << " : "<< camera_->get(i) << std::endl;
@@ -315,13 +315,13 @@ public:
     void dynamic_reconfigure_callback(zed_cpu_ros::zed_cpu_ros_DynConfig &config, uint32_t level) {
         ROS_INFO("Received a dynamic_reconfigure request");
         zed.setResolution(static_cast<ZedResoID>(config.resolution_ID));
-        //zed.setProperty(CV_CAP_PROP_AUTO_EXPOSURE, config.auto_exposure);
-        //zed.setProperty(CV_CAP_PROP_EXPOSURE, config.exposure);
-        zed.setProperty(CV_CAP_PROP_GAIN, config.defaults ? 0.5 : config.gain);
-        zed.setProperty(CV_CAP_PROP_BRIGHTNESS, config.defaults ? 0.375 : config.brightness);
-        zed.setProperty(CV_CAP_PROP_CONTRAST, config.defaults ? 0.125 : config.contrast);
-        zed.setProperty(CV_CAP_PROP_HUE, config.defaults ? 0 : config.hue);
-        zed.setProperty(CV_CAP_PROP_SATURATION, config.defaults ? 0.5 : config.saturation);
+        //zed.setProperty(cv::CAP_PROP_AUTO_EXPOSURE, config.auto_exposure);
+        //zed.setProperty(cv::CAP_PROP_EXPOSURE, config.exposure);
+        zed.setProperty(cv::CAP_PROP_GAIN, config.defaults ? 0.5 : config.gain);
+        zed.setProperty(cv::CAP_PROP_BRIGHTNESS, config.defaults ? 0.375 : config.brightness);
+        zed.setProperty(cv::CAP_PROP_CONTRAST, config.defaults ? 0.125 : config.contrast);
+        zed.setProperty(cv::CAP_PROP_HUE, config.defaults ? 0 : config.hue);
+        zed.setProperty(cv::CAP_PROP_SATURATION, config.defaults ? 0.5 : config.saturation);
     }
 
     /**
