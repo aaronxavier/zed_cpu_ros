@@ -1,12 +1,12 @@
 <launch>
-<arg name="config_file_location" default=""/>
+<arg name="config_file_location" default="$(find zed_cpu_ros)/config/SN21343652.conf"/>
 <arg name="config_is_kalibr_yaml" default="false"/>
-<arg name="camera_namespace" default="camera"/>
-<arg name="device" default="0"/>
-<arg name="resolution" default="2"/>
-<arg name="frame_rate" default="30"/>
-<arg name="flip" default="true"/>
-<arg name="show_image" default="true"/>
+<arg name="camera_namespace" default="zed2"/>
+<arg name="device" default="2"/>
+<arg name="resolution" default="0"/>
+<arg name="frame_rate" default="10"/>
+<arg name="flip" default="false"/>
+<arg name="show_image" default="false"/>
 <arg name="dyn_cfg" default="false"/>
 
 <node pkg="zed_cpu_ros" type="zed_cpu_ros" name="zed_stereo_node" output="screen" ns="$(arg camera_namespace)" required="true">
